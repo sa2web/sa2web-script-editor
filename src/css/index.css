@@ -1,0 +1,159 @@
+
+@import url('./bootstrap.css');
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+    Arial, sans-serif;
+  /* margin: auto;
+  max-width: 38rem;
+  padding: 2rem; */
+}
+
+ .row {
+        --bs-gutter-x: 1.5rem;
+        --bs-gutter-y: 0;
+        display: flex;
+        flex-wrap: wrap;
+        margin-top: inherit;
+        margin-right: inherit;
+        margin-left: inherit;
+    }
+
+ html, body {
+            height: 100%; /* Ensure html and body take full viewport height */
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background-color: #1e1e1e; /* VS Code dark background */
+            font-family: 'Inter', sans-serif; /* Using Inter font as per instructions */
+            line-height: 1.2; /* Reduced default line height for body */
+            display: flex; /* Make body a flex container */
+            flex-direction: column; /* Stack children vertically */
+            color: #cccccc; /* Light text color for contrast */
+        }
+        #app {
+            /* Removed max-width to allow full window width */
+            margin: 10px; /* Adjusted margin for full width, keeping vertical margin */
+            background-color: #252526; /* Slightly lighter dark for app container */
+            padding: 10px;
+            border-radius: 0; /* Removed border-radius */
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.3); /* Darker shadow */
+            display: flex; /* Make app a flex container */
+            flex-direction: column; /* Stack app's children vertically */
+            flex-grow: 1; /* Allow app to grow and take available vertical space */
+            width: calc(100% - 20px); /* Adjust width to account for margin */
+        }
+        .section {
+            margin-bottom: 3px;
+            padding-bottom: 1px;
+            border-bottom: 1px solid #3c3c3c; /* Darker border for sections */
+            flex-shrink: 0; /* Prevent sections from shrinking */
+        }
+        .section:first-child {
+            border-bottom: none;
+        }
+        .section:last-child {
+            border-bottom: none;
+            flex-grow: 1; /* Allow this section (containing code editor) to grow */
+            display: flex; /* Make this section a flex container */
+            flex-direction: column; /* Stack its children vertically */
+        }
+        /* Make form controls even more compact and remove rounded corners */
+        .form-control, .form-select {
+            padding: 0.2rem 0.4rem;
+            font-size: 0.75rem;
+            line-height: 1.2;
+            border-radius: 0 !important;
+            background-color: #3c3c3c; /* Darker background for inputs */
+            color: #cccccc; /* Light text color */
+            border: 1px solid #555555; /* Darker border */
+        }
+        .form-control:focus, .form-select:focus {
+            background-color: #3c3c3c; /* Maintain dark background on focus */
+            color: #cccccc;
+            border-color: #007acc; /* VS Code blue focus border */
+            box-shadow: 0 0 0 0.1rem rgba(0, 122, 204, 0.25); /* Subtle blue shadow on focus */
+        }
+        .btn {
+            padding: 0.2rem 0.5rem;
+            font-size: 0.75rem;
+            line-height: 1.2;
+            border-radius: 0 !important;
+            color: #ffffff; /* White text for buttons */
+        }
+        .btn-primary {
+            background-color: #0e639c !important; /* VS Code blue for primary buttons */
+            border-color: #0e639c !important;
+        }
+        .btn-primary:hover {
+            background-color: #1177bb !important; /* Lighter blue on hover */
+            border-color: #1177bb !important;
+        }
+        .btn-info {
+            background-color: #3a3a3a !important; /* Darker grey for info button */
+            border-color: #3a3a3a !important;
+        }
+        .btn-info:hover {
+            background-color: #4a4a4a !important; /* Lighter grey on hover */
+            border-color: #4a4a4a !important;
+        }
+        .btn-danger {
+            background-color: #cc3333 !important; /* Red for danger button */
+            border-color: #cc3333 !important;
+        }
+        .btn-danger:hover {
+            background-color: #e64d4d !important; /* Lighter red on hover */
+            border-color: #e64d4d !important;
+        }
+
+        .col-form-label {
+            padding-top: calc(0.2rem + 1px);
+            padding-bottom: calc(0.2rem + 1px);
+            font-size: 0.75rem;
+            line-height: 1.2;
+            color: #cccccc; /* Light text color */
+        }
+        .row.g-3 {
+            --bs-gutter-x: 0.4rem;
+            --bs-gutter-y: 0.4rem;
+        }
+        .rule-item {
+            display: flex;
+            align-items: center;
+            background-color: #333333; /* Darker background for rule items */
+            padding: 1px 5px;
+            border-radius: 0 !important;
+            font-size: 0.7rem;
+            line-height: 1.2;
+            color: #cccccc; /* Light text color */
+            border: 1px solid #555555; /* Subtle border */
+        }
+        .rule-item span {
+            margin-right: 5px;
+        }
+        .rule-item .btn-sm {
+            padding: 0.02rem 0.25rem;
+            font-size: 0.6rem;
+            line-height: 1.2;
+            border-radius: 0 !important;
+        }
+        h4 {
+            font-size: 0.9rem;
+            margin-bottom: 0.6rem;
+            line-height: 1.2;
+            color: #e0e0e0; /* Slightly lighter heading color */
+        }
+        .code-editor {
+            border: 1px solid #ddd;
+            height: auto; /* Removed fixed height */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #888;
+            background-color: #fcfcfc;
+            border-radius: 0 !important;
+            font-size: 0.75rem;
+            line-height: 1.2;
+            flex-grow: 1; /* Allow code editor to grow and fill remaining space within its section */
+        }
+       

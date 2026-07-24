@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Script Editor</title>
+    <link rel="stylesheet" href="../css/bootstrap.css">
+    <link rel="stylesheet" href="../css/index.css">
+   <style>
+    input::placeholder {
+  color: #898989 !important;
+}
+.language-button {
+                margin: 5px;
+                padding: 10px;
+                border: none;
+                border-radius: 4px;
+                background-color: #007bff;
+                color: white;
+                cursor: pointer;
+            }
+    #app{
+        visibility: hidden;
+    }
+     .table_info>:not(caption)>*>*{
+        background-color: inherit !important;
+        color:white !important;
+    }
+   </style>
+</head>
+<body>
+   <div id="app">
+        <div class="section">
+            <div class="row g-3 align-items-center mb-3">
+                <div class="col-auto">
+                    <label for="url" class="col-form-label">{{t('url')}}:</label>
+                </div>
+                <div class="col">
+                    <input type="text" id="url" class="form-control" v-model="SaForm.url" :placeholder="t('enterUrl')">
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-primary" @click="launch">{{t('launch')}}</button>
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-primary" @click="runScript">{{t('runScript')}}</button>
+                </div>
+                <div class="col-auto">
+                    <!-- Toggle Button for Rule Sections moved here -->
+                    <button class="btn btn-info" @click="toggleRuleSections">
+                        {{ showRuleSections ? t('hideSettings') : t('showSettings') }}
+                    </button>
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-secondary" @click="openFile">{{t('openFile')}}</button>
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-secondary" @click="saveFile">{{t('saveFile')}}</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rule Sections and Proxy Configuration, conditionally shown -->
+        <div v-show="showRuleSections">
+            <div class="section">
+                <div class="row g-3 align-items-center mb-3">
+                    <div class="col-auto">
+                        <label for="hide-rule" class="col-form-label">{{t('hideRule')}}:</label>
+                    </div>
+                    <div class="col">
+                        <input type="text" id="hide-rule" class="form-control" v-model="newHideRule">
+                    </div>
+                    <div class="col-auto">
+                        <button class="btn btn-primary" @click="addHideRule">{{t('add')}}</button>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12 d-flex flex-wrap align-items-center">
+                        <div v-for="(rule, index) in SaForm.hide" :key="index" class="rule-item me-2 mb-2">
+                            <span>{{ rule }}</span>
+                            <button class="btn btn-danger btn-sm" @click="removeHideRule(index)">{{t('remove')}}</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3 align-items-center mt-3">
+                    <div class="col-auto">
+                        <label for="delete-rule" class="col-form-label">{{t('deleteRule')}}:</label>
+                    </div>
+                    <div class="col">
+                        <input type="text" id="delete-rule" class="form-control" v-model="newDeleteRule">
+                    </div>
+                    <div class="col-auto">
+                        <button class="btn btn-primary" @click="addDeleteRule">{{t('add')}}</button>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12 d-flex flex-wrap align-items-center">
+                        <div v-for="(rule, index) in SaForm.remove" :key="index" class="rule-item me-2 mb-2">
+                            <span>{{ rule }}</span>
+                            <button class="btn btn-danger btn-sm" @click="removeDeleteRule(index)">{{t('remove')}}</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="section">
+                <div class="row g-3 align-items-center mt-3">
+                    <div class="col-auto">
+                        <label  class="col-form-label">{{t('userAgent')}}:</label>
+                    </div>
+                    <div class="col">
+                        <input type="text"      class="form-control" v-model="SaForm.userAgent">
+                    </div>
+                    <div class="col-auto"></div>
+                </div>
+                <div class="row g-3 align-items-center mt-3">
+                    <div class="col-auto">
+                        <label for="delete-rule" class="col-form-label">{{t('requestHeaders')}}:</label>
+                    </div>
+                    <div class="col">
+                        <input type="text"  class="form-control" v-model="SaForm.requestHeaders">
+                    </div>
+                    <div class="col-auto"></div>
+                </div>
+                <div class="row g-3 align-items-center mt-6">
+                    <div class="col-auto">
+                        <label for="delete-rule" class="col-form-label">{{t('responseHeaders')}}:</label>
+                    </div>
+                    <div class="col">
+                        <input type="text"  class="form-control" v-model="SaForm.responseHeaders">
+                    </div>
+                    <div class="col-auto"></div>
+                </div>
+            </div>
+            <div class="section">
+                <div class="  mb-3 ">
+                    <h6 >{{t('mana.product.config.add')}}</h6>
+                    <div class="row">
+                        <div class="col-md-5 mb-2">
+                            <input type="text" v-model="product.newKey" class="form-control" :placeholder="t('mana.product.config.key')" >
+                        </div>
+                        <div class="col-md-5 mb-2">
+                        <input type="text" v-model="product.newValue" class="form-control" :placeholder="t('mana.product.config.value')">
+                        </div>
+                        <div class="col-md-2 mb-2">
+                            <button @click="addProductPair" class="btn btn-primary btn-block">{{t('add')}}</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="  ">
+                     <h6 class="">{{t('mana.product.config.current')}}</h6>
+                     <div v-if="Object.keys(SaForm.product).length === 0" class="alert  text-center" role="alert">
+                       {{t('mana.product.config.empty')}}
+                    </div>
+                    <div v-else class="table-responsive">
+                        
+                    <table class="table table-hover table-bordered table_info">
+                        <thead class="">
+                        <tr>
+                            <th scope="col" class="text-center">{{t('mana.product.config.key')}}</th>
+                            <th scope="col" class="text-center" >{{t('mana.product.config.value')}}</th>
+                            <th scope="col" class="text-center">{{t('op')}}</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr v-for="(value, key) in SaForm.product" :key="key">
+                            <td class="text-center">{{ key }}</td>
+                            <td>
+                                
+                                <input type="text" v-model="SaForm.product[key]" class="form-control text-center">
+                            </td>
+                            <td class="text-center">
+                                <button @click="deleteProductPair(key)" class="btn btn-danger btn-sm">{{t('remove')}}</button>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                    </div>
+                </div>
+            </div>
+            <div class="section">
+                <div class="row g-3 align-items-center mt-3">
+                    <div class="col-auto">
+                        <label for="" class="col-form-label">
+                            <input type="checkbox" v-model="SaForm.urlchangeEvent">{{t('mana.urlchangeEvent')}}
+                            </label>
+                    </div>
+                </div>
+            </div>
+            <!-- New Section for Proxy Configuration -->
+            <div class="section">
+                <h4>{{t('proxyConfig')}}</h4>
+                <div class="row g-3 align-items-center mb-3">
+                    <div class="col-auto">
+                        <label for="proxy-method" class="col-form-label">{{t('proxyMethod')}}:</label>
+                    </div>
+                    <div class="col">
+                        <select id="proxy-method" class="form-select" v-model="SaForm.proxy.method">
+                            <option value="direct">direct</option>
+                            <option value="fixed_servers">fixed_servers</option>
+                            <option value="system">system</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row g-3 align-items-center mb-3">
+                    <div class="col-auto">
+                        <label for="proxy-server" class="col-form-label">{{t('proxyServer')}}:</label>
+                    </div>
+                    <div class="col">
+                        <input type="text" id="proxy-server" class="form-control" v-model="SaForm.proxy.server">
+                    </div>
+                </div>
+                <div class="row g-3 align-items-center mb-3">
+                    <div class="col-auto">
+                        <label for="proxy-bypass" class="col-form-label">{{t('proxyBypass')}}:</label>
+                    </div>
+                    <div class="col">
+                        <input type="text" id="proxy-bypass" class="form-control" v-model="SaForm.proxy.bypassList">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="section">
+            <div class="row g-3 align-items-center mb-3">
+                <div class="col-auto">
+                    <label for="isPage" class="col-form-label">
+                        <input type="checkbox" id="isPage" class="form-check-input" v-model="SaForm.isPage">
+                        {{t('isPage')}}
+                    </label>
+                </div>
+               
+                    <div class="col-auto"  v-if="!SaForm.isPage">
+                        <label for="isSSE" class="col-form-label">
+                            <input type="checkbox" id="isSSE" class="form-check-input" v-model="SaForm.isSSE">
+                            {{t('isSSE')}}
+                        </label>
+                    </div>
+                    <div class="col-auto"  v-if="!SaForm.isPage">
+                        <label for="matchUrl" class="col-form-label">{{t('matchUrl')}}:</label>
+                    </div>
+                    <div class="col" v-if="!SaForm.isPage">
+                        <input type="text" id="matchUrl" class="form-control" v-model="SaForm.matchUrl">
+                    </div>
+                    <div class="col-auto" v-if="SaForm.isPage">
+                        <label for="scriptSelector" class="col-form-label">{{t('scriptSelector')}}:</label>
+                    </div>
+                    <div class="col" v-if="SaForm.isPage">
+                        <input type="text" id="scriptSelector" class="form-control" v-model="SaForm.scriptSelector" :placeholder="t('enterScriptSelector')">
+                    </div>
+            </div>
+        </div>
+        <div class="section">
+            <div id="container" class="code-editor"></div>
+        </div>
+    </div>
+    <script src="../vendors/bootstrap.bundle.min.js"></script>
+    <script src="../vendors/vue.global.js"></script>
+    <script src="../vendors/monaco-editor/vs/loader.js"></script>
+    <script>
+        window.Vue=Vue;
+        require.config({ paths: { 'vs': '../vendors/monaco-editor/vs' } });
+        require(['vs/editor/editor.main'], function() {
+            window.monaco = monaco;
+        });
+    </script>
+</body>
+</html>
