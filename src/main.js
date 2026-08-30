@@ -5,6 +5,7 @@ const path = require('node:path');
 import { init } from 'i18next';
 import { i18n } from './i18n.js';
 import * as cspParser from 'content-security-policy-parser';
+import ajax from './Ajax.js';
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
   app.quit();
@@ -562,7 +563,20 @@ ipcMain.handle('userData.countAll', async (event, name, site = false, account = 
 ipcMain.handle('userData.sumAll', async (event, name, site = false, account = false, did = false) => {
   return api.user.sumAll(name, site, account, did);
 });
-
+ipcMain.handle('ajaxData.ajax',async (event,options)=>{
+    const {mid,url,method,data,headers,timeout,dataType,contentType,processData} = options;
+    const ret=await ajax({
+            url,
+            method,
+            data,
+            headers,
+            timeout,
+            dataType,
+            contentType,
+            processData
+        });
+    return ret;
+});
 ipcMain.handle('getHeader', async (event, name, isRequest) => {
   name = (name || '').toLocaleLowerCase();
   if (isRequest) {

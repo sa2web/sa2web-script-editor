@@ -79,6 +79,22 @@ declare const api: {
        */
       sumAll(name:string,site=false,account=false):Promise<{value:number,status:boolean}>;
    };
+   http: {
+      /**
+       * ${t('api.http.ajax')}
+       * @param options ${t('api.http.ajax.options')}
+       * @param options.url ${t('api.http.ajax.options.url')}
+       * @param options.method ${t('api.http.ajax.options.method')}
+       * @param options.data ${t('api.http.ajax.options.data')}
+       * @param options.headers ${t('api.http.ajax.options.headers')}
+       * @param options.timeout ${t('api.http.ajax.options.timeout')}
+       * @param options.dataType ${t('api.http.ajax.options.dataType')}
+       * @param options.contentType ${t('api.http.ajax.options.contentType')}
+       * @param options.processData ${t('api.http.ajax.options.processData')}
+       * @returns {Promise<{ok:boolean,status:number,statusText:string,data?:any,error?:string,timeout?:boolean}>} ${t('api.http.ajax.return')}
+       */
+      ajax(options:{url:string,method?:string,data?:any,headers?:Record<string,string>,timeout?:number,dataType?:'json'|'text'|'html'|'arrayBuffer',contentType?:string,processData?:boolean}):Promise<{ok:boolean,status:number,statusText:string,data?:any,error?:string,timeout?:boolean}>;
+   };
    dom: {
      /**
       * ${t('api.dom.querySelector')}

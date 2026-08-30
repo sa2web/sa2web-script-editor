@@ -7,7 +7,7 @@ Ce document résume les API principales montées sur `window` par `src/preload.j
 | API | Fenêtre | Rôle |
 | --- | --- | --- |
 | `window.fileApi` | Fenêtre principale | Communication avec le processus principal : ouvrir/enregistrer des fichiers, lancer la fenêtre de test, lire/enregistrer la configuration, recevoir les événements de menu et changer de langue. |
-| `window.api` | Fenêtre de test et iframes accessibles | API de script utilisateur : données utilisateur, requêtes et observations DOM, overlays, utilitaires, en-têtes request/response et configuration produit. |
+| `window.api` | Fenêtre de test et iframes accessibles | API de script utilisateur : données utilisateur, requêtes HTTP, requêtes et observations DOM, overlays, utilitaires, en-têtes request/response et configuration produit. |
 
 La page de test peut aussi injecter ou modifier `window.EventSource`, `window.fetch` et l'événement personnalisé `urlchange`.
 
@@ -35,6 +35,7 @@ La page de test peut aussi injecter ou modifier `window.EventSource`, `window.fe
 interface Window {
   api: {
     user: UserApi;
+    http: HttpApi;
     config: Record<string, unknown>;
     dom: DomApi;
     utils: UtilsApi;
@@ -45,7 +46,17 @@ interface Window {
 
 `api.config` lit les paires clé-valeur de la configuration produit : `api.config === saForm.product || {}`.
 
-## 4. `api.user`
+## 4. `api.http`
+
+`api.http` fournit des outils de requête HTTP aux scripts utilisateur. `api.http.ajax` exécute la requête réelle dans le processus principal du navigateur ; elle n'est donc pas limitée par la politique CORS de la page.
+
+| Méthode | Signature | Description |
+| --- | --- | --- |
+| `ajax` | `ajax(options: { url: string; method?: string; data?: any; headers?: Record<string, string>; timeout?: number; dataType?: 'json' \| 'text' \| 'html' \| 'arrayBuffer'; contentType?: string; processData?: boolean }): Promise<{ ok: boolean, status: number, statusText: string, data?: any, error?: string, timeout?: boolean }>` | Envoie une requête HTTP. `method` vaut `GET` par défaut ; `dataType` vaut `json` ; `contentType` vaut `application/x-www-form-urlencoded; charset=UTF-8` ; `processData` vaut `true`. Les données `GET`/`HEAD` sont sérialisées dans la query string, les autres dans le corps. |
+
+Le résultat contient `ok`, `status` et `statusText`. `data` contient la réponse analysée si possible, `error` contient le message d'erreur, et `timeout` vaut `true` si le délai d'expiration a interrompu la requête.
+
+## 5. `api.user`
 
 `api.user` lit et écrit des données liées à l'utilisateur. L'implémentation actuelle repose sur un tableau en mémoire dans le processus principal ; elle n'est pas persistée comme base de données après redémarrage.
 
@@ -62,7 +73,7 @@ Paramètres optionnels communs : `site`, `account` et `did` sont des booléens �
 | `countAll` | `countAll(name: string, site?: boolean, account?: boolean): Promise<{ value: number, status: boolean }>` | Compte les enregistrements portant ce nom. |
 | `sumAll` | `sumAll(name: string, site?: boolean, account?: boolean): Promise<{ value: number, status: boolean }>` | Additionne les valeurs numériques portant ce nom. |
 
-## 5. `api.dom`
+## 6. `api.dom`
 
 `api.dom` fournit la recherche DOM, la visibilité, les écouteurs de connexion, les écouteurs de taille et les overlays.
 
@@ -84,14 +95,14 @@ Sélecteurs pris en charge : CSS (`.class-name`), XPath (`xpath://div[@id="app"]
 
 Les overlays sont ajoutés à `document.documentElement`, deviennent de taille `0px` si la cible disparaît, et se mettent à jour via `ResizeObserver`, `resize` et `scroll`.
 
-## 6. `api.utils`
+## 7. `api.utils`
 
 | Méthode | Signature | Description |
 | --- | --- | --- |
 | `wait` | `wait(fn: () => boolean, timeoutMs: number, intervalMs?: number): Promise<void>` | Interroge `fn` jusqu'à ce qu'elle retourne une valeur vraie. `intervalMs` vaut `100` par défaut. En cas de délai dépassé, rejette `Error("Timeout: function did not return true in time.")`. |
 | `runScript` | `runScript(code: string, userGesture?: boolean, callback?: (result: any, error: Error) => void): Promise<any>` | Exécute du JavaScript dans la page via `webFrame.executeJavaScript`. |
 
-## 7. `api.header(headerName, isRequestHeader)`
+## 8. `api.header(headerName, isRequestHeader)`
 
 ```ts
 header(headerName: string, isRequestHeader: boolean): Promise<string | string[] | undefined>
@@ -99,18 +110,18 @@ header(headerName: string, isRequestHeader: boolean): Promise<string | string[] 
 
 Lit les en-têtes enregistrés par la fenêtre de test. `headerName` est converti en minuscules ; `true` lit les en-têtes de requête, `false` les en-têtes de réponse. Seuls les noms configurés dans `requestHeaders` ou `responseHeaders` sont enregistrés. Les requêtes viennent de `webRequest.onSendHeaders`, les réponses de `webRequest.onHeadersReceived`.
 
-## 8. Injection et événements globaux
+## 9. Injection et événements globaux
 
 - `urlchange` : si `saForm.urlchangeEvent` est vrai et que la fenêtre est top-level, `pushState`, `replaceState` et `popstate` sont enveloppés. L'événement fournit `{ oldUrl, url }`.
 - `window.EventSource` : en mode SSE, `addEventListener('message', fn)` et `onmessage` sont enveloppés. Quand `saForm.matchUrl` correspond, les données du message sont passées au script, et le texte retourné devient `MessageEvent.data`.
 - `window.fetch` : en mode SSE, seules les réponses `text/event-stream` dont l'URL correspond à `matchUrl` sont lues chunk par chunk, traitées par le script, réencodées et réécrites dans un `ReadableStream`.
 - `postIpcMessage(type, data)` : fonction interne injectée pour communiquer entre le contexte page et preload via `window.postMessage`. Elle sert surtout à `doSSE`/`doReplySSE` et n'est pas recommandée pour les scripts métier.
 
-## 9. Contrôle de page
+## 10. Contrôle de page
 
 - `saForm.hide` : à l'initialisation et lors des changements DOM, les éléments correspondants reçoivent `__ignore__="true"` et `display: none`.
 - `saForm.remove` : à l'initialisation et lors des changements DOM, les éléments correspondants sont retirés de leur parent.
 
-## 10. Résumé des types
+## 11. Résumé des types
 
 Voir `api.md` pour le bloc TypeScript complet ; les signatures ci-dessus gardent les mêmes types publics.

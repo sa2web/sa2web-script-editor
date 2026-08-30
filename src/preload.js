@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer, webFrame } = require('electron');
 const { UserDataService } = require('./userData');
 const { Utils } = require('./utils');
 const { Logger } = require('./logger');
+const { AjaxDataService } = require('./AjaxData');
 let saForm = null;
 const logger = new Logger("preload");
 contextBridge.exposeInMainWorld('fileApi', {
@@ -194,6 +195,7 @@ let initUserScriptApis = (win) => {
 
     let api = {
         user: new UserDataService(),
+        http: new AjaxDataService(),
         config: saForm.product || {},
         dom: {
             createMutationObserver: (ele, bindStr, childList, subtree, attributes, characterData, fn) => {

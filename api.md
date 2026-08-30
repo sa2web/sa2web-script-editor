@@ -9,7 +9,7 @@ This document summarizes the main APIs mounted on `window` by `src/preload.js`, 
 | API | Window | Purpose |
 | --- | --- | --- |
 | `window.fileApi` | Main application window | Communicates with the main process: open/save files, launch the test window, read/save configuration, handle menu events, and switch language. |
-| `window.api` | Test page window and accessible iframes | User-script API: user data, DOM lookup and observation, overlays, utilities, request/response headers, and product configuration. |
+| `window.api` | Test page window and accessible iframes | User-script API: user data, HTTP requests, DOM lookup and observation, overlays, utilities, request/response headers, and product configuration. |
 
 The test page may also inject or wrap:
 
@@ -84,6 +84,7 @@ Each method returns `Electron.IpcRenderer`.
 interface Window {
   api: {
     user: UserApi;
+    http: HttpApi;
     config: Record<string, unknown>;
     dom: DomApi;
     utils: UtilsApi;
@@ -106,7 +107,83 @@ Equivalent source:
 api.config === saForm.product || {}
 ```
 
-## 4. `api.user`
+## 4. `api.http`
+
+`api.http` provides HTTP helpers for user scripts. `api.http.ajax` executes the actual request in the browser main process, so it is not restricted by the page's CORS policy.
+
+### 4.1 `api.http.ajax(options)`
+
+Sends an HTTP request.
+
+```ts
+ajax(options: {
+  url: string;
+  method?: string;
+  data?: any;
+  headers?: Record<string, string>;
+  timeout?: number;
+  dataType?: 'json' | 'text' | 'html' | 'arrayBuffer';
+  contentType?: string;
+  processData?: boolean;
+}): Promise<{
+  ok: boolean;
+  status: number;
+  statusText: string;
+  data?: any;
+  error?: string;
+  timeout?: boolean;
+}>
+```
+
+Parameters:
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `url` | string | - | Request URL. |
+| `method` | string | `GET` | HTTP method. |
+| `data` | any | - | Request data. For `GET` and `HEAD`, it is serialized into the query string. For other methods, it is written to the request body. |
+| `headers` | `Record<string, string>` | `{}` | Request headers. |
+| `timeout` | number | - | Timeout in milliseconds. It takes effect only when greater than `0`. |
+| `dataType` | `'json' \| 'text' \| 'html' \| 'arrayBuffer'` | `json` | Response parsing mode. |
+| `contentType` | string | `application/x-www-form-urlencoded; charset=UTF-8` | Request body Content-Type. |
+| `processData` | boolean | `true` | Whether to automatically serialize `data`. Set to `false` to pass `data` directly as the request body. |
+
+Return value:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `ok` | boolean | `true` for HTTP 2xx responses; `false` for parsing errors, HTTP errors, timeout, abort, or network errors. |
+| `status` | number | HTTP status code. `0` indicates timeout, abort, or network-level failure. |
+| `statusText` | string | HTTP status text, or `timeout`, `abort`, or `error` for non-HTTP failures. |
+| `data` | any | Parsed response data, present when parsing succeeds. |
+| `error` | string | Error message, present for parsing failures or non-HTTP failures. |
+| `timeout` | boolean | `true` when the request was aborted by the configured timeout. |
+
+Examples:
+
+```js
+const ret = await api.http.ajax({
+  url: 'https://example.com/api/profile',
+  method: 'GET',
+  dataType: 'json',
+  timeout: 10000
+});
+
+if (ret.ok) {
+  console.log(ret.data);
+}
+```
+
+```js
+const ret = await api.http.ajax({
+  url: 'https://example.com/api/items',
+  method: 'POST',
+  contentType: 'application/json',
+  data: { name: 'demo' }
+});
+```
+
+## 5. `api.user`
 
 `api.user` reads and writes user-related data. The current implementation is backed by an in-memory array in the main process and is not persisted as a database after restart.
 
@@ -148,11 +225,11 @@ const ret = await api.user.get('token');
 console.log(ret.value);
 ```
 
-## 5. `api.dom`
+## 6. `api.dom`
 
 `api.dom` provides DOM lookup, visibility checks, connection listeners, size listeners, and overlay creation.
 
-### 5.1 Selector Rules
+### 6.1 Selector Rules
 
 Every `cssOrXPathSelector` supports:
 
@@ -162,7 +239,7 @@ Every `cssOrXPathSelector` supports:
 
 Overlay-boundary methods also support `:top`, `:right`, `:bottom`, and `:left` to choose the edge of the target element.
 
-### 5.2 DOM Method Reference
+### 6.2 DOM Method Reference
 
 | Method | Signature | Description |
 | --- | --- | --- |
@@ -184,9 +261,9 @@ Overlay notes:
 - When the target disappears, width and height become `0px`.
 - Position updates listen to `ResizeObserver`, `resize`, and `scroll`.
 
-## 6. `api.utils`
+## 7. `api.utils`
 
-### 6.1 `api.utils.wait(fn, timeoutMs, intervalMs)`
+### 7.1 `api.utils.wait(fn, timeoutMs, intervalMs)`
 
 Polls until the condition function returns a truthy value.
 
@@ -196,7 +273,7 @@ wait(fn: () => boolean, timeoutMs: number, intervalMs?: number): Promise<void>
 
 `intervalMs` defaults to `100`. Timeout rejects with `Error("Timeout: function did not return true in time.")`; errors thrown by `fn` reject directly.
 
-### 6.2 `api.utils.runScript(code, userGesture, callback)`
+### 7.2 `api.utils.runScript(code, userGesture, callback)`
 
 Executes JavaScript in the current page.
 
@@ -206,7 +283,7 @@ runScript(code: string, userGesture?: boolean, callback?: (result: any, error: E
 
 Internally calls Electron `webFrame.executeJavaScript(code, userGesture, callback)`. `userGesture` controls whether execution simulates a user gesture.
 
-## 7. `api.header(headerName, isRequestHeader)`
+## 8. `api.header(headerName, isRequestHeader)`
 
 Reads request or response headers recorded by the test window.
 
@@ -221,9 +298,9 @@ header(headerName: string, isRequestHeader: boolean): Promise<string | string[] 
 
 Only headers configured in the main window's `requestHeaders` or `responseHeaders` are recorded. Request headers come from `webRequest.onSendHeaders`; response headers come from `webRequest.onHeadersReceived`. Response headers are JSON-serialized in the main process and parsed by the preload script.
 
-## 8. Injection Behavior and Global Events
+## 9. Injection Behavior and Global Events
 
-### 8.1 `urlchange`
+### 9.1 `urlchange`
 
 When `saForm.urlchangeEvent` is truthy and the current window is the top-level window, the preload script wraps:
 
@@ -240,7 +317,7 @@ window.addEventListener('urlchange', (event: CustomEvent<{
 }>) => void)
 ```
 
-### 8.2 `window.EventSource` Wrapper
+### 9.2 `window.EventSource` Wrapper
 
 In SSE mode, the preload script proxies `EventSource`:
 
@@ -257,7 +334,7 @@ async (data) => {
 }
 ```
 
-### 8.3 `window.fetch` Wrapper
+### 9.3 `window.fetch` Wrapper
 
 In SSE mode, the preload script proxies `fetch` responses:
 
@@ -265,7 +342,7 @@ In SSE mode, the preload script proxies `fetch` responses:
 - only handles response URLs matching `saForm.matchUrl`;
 - reads stream chunks, passes text to the script, re-encodes the returned text, and writes it back into a `ReadableStream`.
 
-### 8.4 `postIpcMessage(type, data)`
+### 9.4 `postIpcMessage(type, data)`
 
 Injected page code creates a global async `postIpcMessage` function for request/response communication between the page context and preload context through `window.postMessage`.
 
@@ -275,17 +352,17 @@ postIpcMessage(type: string, data: object): Promise<any>
 
 It is currently used internally for SSE communication with request type `doSSE` and response type `doReplySSE`. Business scripts should not rely on this internal function.
 
-## 9. Page Control Behavior
+## 10. Page Control Behavior
 
-### 9.1 `saForm.hide`
+### 10.1 `saForm.hide`
 
 During page-script initialization and DOM changes, matching elements are marked with `__ignore__="true"` and hidden with `display: none`.
 
-### 9.2 `saForm.remove`
+### 10.2 `saForm.remove`
 
 During page-script initialization and DOM changes, matching elements are removed from their parent node.
 
-## 10. Type Summary
+## 11. Type Summary
 
 ```ts
 type UserApi = {
@@ -297,6 +374,19 @@ type UserApi = {
   startsWith(prefix: string, site?: boolean, account?: boolean, did?: boolean): Promise<Array<{ name: string, value: string }>>;
   countAll(name: string, site?: boolean, account?: boolean): Promise<{ value: number, status: boolean }>;
   sumAll(name: string, site?: boolean, account?: boolean): Promise<{ value: number, status: boolean }>;
+};
+
+type HttpApi = {
+  ajax(options: {
+    url: string;
+    method?: string;
+    data?: any;
+    headers?: Record<string, string>;
+    timeout?: number;
+    dataType?: 'json' | 'text' | 'html' | 'arrayBuffer';
+    contentType?: string;
+    processData?: boolean;
+  }): Promise<{ ok: boolean, status: number, statusText: string, data?: any, error?: string, timeout?: boolean }>;
 };
 
 type DomApi = {

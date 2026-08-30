@@ -7,7 +7,7 @@ Dokumen ini merangkum API utama yang dipasang ke `window` oleh `src/preload.js`,
 | API | Window | Tujuan |
 | --- | --- | --- |
 | `window.fileApi` | Jendela utama | Komunikasi dengan main process: buka/simpan file, jalankan jendela uji, baca/simpan konfigurasi, event menu, dan ganti bahasa. |
-| `window.api` | Jendela halaman uji dan iframe yang dapat diakses | API user script: data pengguna, query dan observasi DOM, overlay, utilitas, header request/response, dan konfigurasi produk. |
+| `window.api` | Jendela halaman uji dan iframe yang dapat diakses | API user script: data pengguna, request HTTP, query dan observasi DOM, overlay, utilitas, header request/response, dan konfigurasi produk. |
 
 Halaman uji juga dapat membungkus `window.EventSource`, `window.fetch`, dan mengirim event kustom `urlchange`.
 
@@ -35,6 +35,7 @@ Event menu: `onMenuOpenFile(callback)`, `onMenuSaveFile(callback)`, `onMenuChang
 interface Window {
   api: {
     user: UserApi;
+    http: HttpApi;
     config: Record<string, unknown>;
     dom: DomApi;
     utils: UtilsApi;
@@ -45,7 +46,17 @@ interface Window {
 
 `api.config` membaca konfigurasi produk: `api.config === saForm.product || {}`.
 
-## 4. `api.user`
+## 4. `api.http`
+
+`api.http` menyediakan alat request HTTP untuk user script. `api.http.ajax` menjalankan request sebenarnya di proses utama browser, sehingga tidak dibatasi oleh kebijakan CORS halaman.
+
+| Metode | Signature | Deskripsi |
+| --- | --- | --- |
+| `ajax` | `ajax(options: { url: string; method?: string; data?: any; headers?: Record<string, string>; timeout?: number; dataType?: 'json' \| 'text' \| 'html' \| 'arrayBuffer'; contentType?: string; processData?: boolean }): Promise<{ ok: boolean, status: number, statusText: string, data?: any, error?: string, timeout?: boolean }>` | Mengirim request HTTP. `method` default `GET`; `dataType` default `json`; `contentType` default `application/x-www-form-urlencoded; charset=UTF-8`; `processData` default `true`. Data `GET`/`HEAD` diserialisasi ke query string, request lain ditulis ke body. |
+
+Hasil berisi `ok`, `status`, dan `statusText`. `data` berisi response yang sudah diparse jika memungkinkan, `error` berisi pesan error, dan `timeout` bernilai `true` jika request dihentikan oleh timeout.
+
+## 5. `api.user`
 
 `api.user` membaca dan menulis data terkait pengguna. Saat ini data ditopang array memori di main process dan tidak persisten seperti database setelah restart.
 
@@ -62,7 +73,7 @@ Parameter opsional umum: `site`, `account`, dan `did` adalah boolean default `fa
 | `countAll` | `countAll(name: string, site?: boolean, account?: boolean): Promise<{ value: number, status: boolean }>` | Menghitung record dengan nama tersebut. |
 | `sumAll` | `sumAll(name: string, site?: boolean, account?: boolean): Promise<{ value: number, status: boolean }>` | Menjumlahkan nilai numerik dari record bernama tersebut. |
 
-## 5. `api.dom`
+## 6. `api.dom`
 
 `api.dom` menyediakan pencarian DOM, cek visibility, listener koneksi, listener ukuran, dan pembuatan overlay.
 
@@ -84,14 +95,14 @@ Selector yang didukung: CSS (`.class-name`), XPath (`xpath://div[@id="app"]`), s
 
 Overlay ditambahkan ke `document.documentElement`, menjadi `0px` jika target hilang, dan diperbarui melalui `ResizeObserver`, `resize`, dan `scroll`.
 
-## 6. `api.utils`
+## 7. `api.utils`
 
 | Metode | Signature | Deskripsi |
 | --- | --- | --- |
 | `wait` | `wait(fn: () => boolean, timeoutMs: number, intervalMs?: number): Promise<void>` | Polling sampai `fn` bernilai truthy. `intervalMs` default `100`. Timeout menolak dengan `Error("Timeout: function did not return true in time.")`. |
 | `runScript` | `runScript(code: string, userGesture?: boolean, callback?: (result: any, error: Error) => void): Promise<any>` | Menjalankan JavaScript di halaman melalui `webFrame.executeJavaScript`. |
 
-## 7. `api.header(headerName, isRequestHeader)`
+## 8. `api.header(headerName, isRequestHeader)`
 
 ```ts
 header(headerName: string, isRequestHeader: boolean): Promise<string | string[] | undefined>
@@ -99,18 +110,18 @@ header(headerName: string, isRequestHeader: boolean): Promise<string | string[] 
 
 Membaca header yang dicatat jendela uji. `headerName` diubah ke huruf kecil; `true` membaca request header, `false` membaca response header. Hanya nama yang dikonfigurasi di `requestHeaders` atau `responseHeaders` yang dicatat.
 
-## 8. Injeksi dan Event Global
+## 9. Injeksi dan Event Global
 
 - `urlchange`: jika `saForm.urlchangeEvent` benar dan window adalah top-level, `pushState`, `replaceState`, dan `popstate` dibungkus; event berisi `{ oldUrl, url }`.
 - `window.EventSource`: dalam mode SSE, `addEventListener('message', fn)` dan `onmessage` dibungkus; jika `matchUrl` cocok, data diproses script dan hasilnya mengganti `MessageEvent.data`.
 - `window.fetch`: dalam mode SSE, hanya memproses response `text/event-stream` dengan URL cocok; membaca chunk, menjalankan script, encode ulang, dan menulis ke `ReadableStream`.
 - `postIpcMessage(type, data)`: fungsi internal untuk komunikasi page/preload lewat `window.postMessage`, terutama untuk `doSSE` dan `doReplySSE`.
 
-## 9. Kontrol Halaman
+## 10. Kontrol Halaman
 
 - `saForm.hide`: saat inisialisasi dan perubahan DOM, elemen cocok diberi `__ignore__="true"` dan `display: none`.
 - `saForm.remove`: saat inisialisasi dan perubahan DOM, elemen cocok dihapus dari parent.
 
-## 10. Tipe
+## 11. Tipe
 
 Lihat `api.md` untuk blok TypeScript lengkap; signature publik sama seperti yang tercantum di atas.

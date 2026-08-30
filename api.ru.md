@@ -7,7 +7,7 @@
 | API | Окно | Назначение |
 | --- | --- | --- |
 | `window.fileApi` | Главное окно | Связь с главным процессом: открыть/сохранить файлы, запустить тестовое окно, читать/сохранять конфигурацию, события меню и смена языка. |
-| `window.api` | Тестовая страница и доступные iframe | API пользовательских скриптов: данные пользователя, DOM-запросы и наблюдение, оверлеи, утилиты, заголовки request/response и конфигурация продукта. |
+| `window.api` | Тестовая страница и доступные iframe | API пользовательских скриптов: данные пользователя, HTTP-запросы, DOM-запросы и наблюдение, оверлеи, утилиты, заголовки request/response и конфигурация продукта. |
 
 Тестовая страница также может оборачивать `window.EventSource`, `window.fetch` и отправлять пользовательское событие `urlchange`.
 
@@ -35,6 +35,7 @@
 interface Window {
   api: {
     user: UserApi;
+    http: HttpApi;
     config: Record<string, unknown>;
     dom: DomApi;
     utils: UtilsApi;
@@ -45,7 +46,17 @@ interface Window {
 
 `api.config` читает конфигурацию продукта: `api.config === saForm.product || {}`.
 
-## 4. `api.user`
+## 4. `api.http`
+
+`api.http` предоставляет инструменты HTTP-запросов для пользовательских скриптов. `api.http.ajax` выполняет реальный запрос в главном процессе браузера, поэтому он не ограничен CORS-политикой страницы.
+
+| Метод | Сигнатура | Описание |
+| --- | --- | --- |
+| `ajax` | `ajax(options: { url: string; method?: string; data?: any; headers?: Record<string, string>; timeout?: number; dataType?: 'json' \| 'text' \| 'html' \| 'arrayBuffer'; contentType?: string; processData?: boolean }): Promise<{ ok: boolean, status: number, statusText: string, data?: any, error?: string, timeout?: boolean }>` | Отправляет HTTP-запрос. `method` по умолчанию `GET`; `dataType` по умолчанию `json`; `contentType` по умолчанию `application/x-www-form-urlencoded; charset=UTF-8`; `processData` по умолчанию `true`. Данные `GET`/`HEAD` сериализуются в query string, остальные записываются в body. |
+
+Результат содержит `ok`, `status` и `statusText`. `data` содержит разобранный ответ, если это возможно, `error` содержит сообщение ошибки, а `timeout` равно `true`, если запрос прерван по timeout.
+
+## 5. `api.user`
 
 `api.user` читает и записывает данные, связанные с пользователем. Сейчас данные хранятся в массиве памяти главного процесса и не сохраняются как база данных после перезапуска.
 
@@ -62,7 +73,7 @@ interface Window {
 | `countAll` | `countAll(name: string, site?: boolean, account?: boolean): Promise<{ value: number, status: boolean }>` | Считает записи с указанным именем. |
 | `sumAll` | `sumAll(name: string, site?: boolean, account?: boolean): Promise<{ value: number, status: boolean }>` | Суммирует числовые значения записей с указанным именем. |
 
-## 5. `api.dom`
+## 6. `api.dom`
 
 `api.dom` предоставляет DOM-поиск, проверку видимости, слушатели подключения, слушатели размера и создание оверлеев.
 
@@ -84,14 +95,14 @@ interface Window {
 
 Оверлеи добавляются в `document.documentElement`, становятся `0px` при исчезновении цели и обновляются через `ResizeObserver`, `resize` и `scroll`.
 
-## 6. `api.utils`
+## 7. `api.utils`
 
 | Метод | Сигнатура | Описание |
 | --- | --- | --- |
 | `wait` | `wait(fn: () => boolean, timeoutMs: number, intervalMs?: number): Promise<void>` | Опрос до truthy-результата `fn`. `intervalMs` по умолчанию `100`. При timeout отклоняет `Error("Timeout: function did not return true in time.")`. |
 | `runScript` | `runScript(code: string, userGesture?: boolean, callback?: (result: any, error: Error) => void): Promise<any>` | Выполняет JavaScript на странице через `webFrame.executeJavaScript`. |
 
-## 7. `api.header(headerName, isRequestHeader)`
+## 8. `api.header(headerName, isRequestHeader)`
 
 ```ts
 header(headerName: string, isRequestHeader: boolean): Promise<string | string[] | undefined>
@@ -99,18 +110,18 @@ header(headerName: string, isRequestHeader: boolean): Promise<string | string[] 
 
 Читает заголовки, записанные тестовым окном. `headerName` приводится к нижнему регистру; `true` читает request headers, `false` response headers. Записываются только имена из `requestHeaders` или `responseHeaders`.
 
-## 8. Внедрение и глобальные события
+## 9. Внедрение и глобальные события
 
 - `urlchange`: если `saForm.urlchangeEvent` истинно и окно top-level, `pushState`, `replaceState` и `popstate` оборачиваются; событие содержит `{ oldUrl, url }`.
 - `window.EventSource`: в SSE-режиме оборачиваются `addEventListener('message', fn)` и `onmessage`; при совпадении `matchUrl` данные обрабатываются скриптом, а результат заменяет `MessageEvent.data`.
 - `window.fetch`: в SSE-режиме обрабатываются только ответы `text/event-stream` с совпадающим URL; chunks читаются, обрабатываются скриптом, кодируются и пишутся в `ReadableStream`.
 - `postIpcMessage(type, data)`: внутренняя функция связи page/preload через `window.postMessage`, в основном для `doSSE` и `doReplySSE`.
 
-## 9. Управление страницей
+## 10. Управление страницей
 
 - `saForm.hide`: при инициализации и изменениях DOM совпавшие элементы получают `__ignore__="true"` и `display: none`.
 - `saForm.remove`: при инициализации и изменениях DOM совпавшие элементы удаляются из родителя.
 
-## 10. Типы
+## 11. Типы
 
 Полный TypeScript-блок см. в `api.md`; публичные сигнатуры совпадают с перечисленными выше.

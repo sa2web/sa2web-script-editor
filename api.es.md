@@ -7,7 +7,7 @@ Este documento resume las API principales montadas en `window` por `src/preload.
 | API | Ventana | Propósito |
 | --- | --- | --- |
 | `window.fileApi` | Ventana principal | Comunicación con el proceso principal: abrir/guardar archivos, lanzar la ventana de prueba, leer/guardar configuración, eventos de menú y cambio de idioma. |
-| `window.api` | Ventana de prueba e iframes accesibles | API para scripts de usuario: datos de usuario, consultas y observación DOM, overlays, utilidades, encabezados request/response y configuración de producto. |
+| `window.api` | Ventana de prueba e iframes accesibles | API para scripts de usuario: datos de usuario, solicitudes HTTP, consultas y observación DOM, overlays, utilidades, encabezados request/response y configuración de producto. |
 
 La página de prueba también puede envolver `window.EventSource`, `window.fetch` y emitir el evento personalizado `urlchange`.
 
@@ -35,6 +35,7 @@ Eventos de menú: `onMenuOpenFile(callback)`, `onMenuSaveFile(callback)`, `onMen
 interface Window {
   api: {
     user: UserApi;
+    http: HttpApi;
     config: Record<string, unknown>;
     dom: DomApi;
     utils: UtilsApi;
@@ -45,7 +46,17 @@ interface Window {
 
 `api.config` lee la configuración de producto: `api.config === saForm.product || {}`.
 
-## 4. `api.user`
+## 4. `api.http`
+
+`api.http` ofrece herramientas de solicitud HTTP para scripts de usuario. `api.http.ajax` ejecuta la solicitud real en el proceso principal del navegador, por lo que no queda limitada por la política CORS de la página.
+
+| Método | Firma | Descripción |
+| --- | --- | --- |
+| `ajax` | `ajax(options: { url: string; method?: string; data?: any; headers?: Record<string, string>; timeout?: number; dataType?: 'json' \| 'text' \| 'html' \| 'arrayBuffer'; contentType?: string; processData?: boolean }): Promise<{ ok: boolean, status: number, statusText: string, data?: any, error?: string, timeout?: boolean }>` | Envía una solicitud HTTP. `method` usa `GET` por defecto; `dataType` usa `json`; `contentType` usa `application/x-www-form-urlencoded; charset=UTF-8`; `processData` usa `true`. Los datos de `GET`/`HEAD` se serializan en la query string y los demás se escriben en el body. |
+
+El resultado contiene `ok`, `status` y `statusText`. `data` contiene la respuesta parseada cuando es posible, `error` contiene el mensaje de error y `timeout` vale `true` si el tiempo de espera abortó la solicitud.
+
+## 5. `api.user`
 
 `api.user` lee y escribe datos asociados al usuario. Actualmente se respalda con un arreglo en memoria del proceso principal y no se conserva como base de datos tras reiniciar.
 
@@ -62,7 +73,7 @@ Parámetros opcionales comunes: `site`, `account` y `did` son booleanos con valo
 | `countAll` | `countAll(name: string, site?: boolean, account?: boolean): Promise<{ value: number, status: boolean }>` | Cuenta registros con ese nombre. |
 | `sumAll` | `sumAll(name: string, site?: boolean, account?: boolean): Promise<{ value: number, status: boolean }>` | Suma valores numéricos con ese nombre. |
 
-## 5. `api.dom`
+## 6. `api.dom`
 
 `api.dom` ofrece búsqueda DOM, visibilidad, listeners de conexión, listeners de tamaño y creación de overlays.
 
@@ -84,14 +95,14 @@ Selectores soportados: CSS (`.class-name`), XPath (`xpath://div[@id="app"]`), su
 
 Los overlays se agregan a `document.documentElement`, pasan a `0px` si el objetivo desaparece y se actualizan con `ResizeObserver`, `resize` y `scroll`.
 
-## 6. `api.utils`
+## 7. `api.utils`
 
 | Método | Firma | Descripción |
 | --- | --- | --- |
 | `wait` | `wait(fn: () => boolean, timeoutMs: number, intervalMs?: number): Promise<void>` | Sondea hasta que `fn` sea verdadera. `intervalMs` vale `100`. Si vence, rechaza `Error("Timeout: function did not return true in time.")`. |
 | `runScript` | `runScript(code: string, userGesture?: boolean, callback?: (result: any, error: Error) => void): Promise<any>` | Ejecuta JavaScript en la página con `webFrame.executeJavaScript`. |
 
-## 7. `api.header(headerName, isRequestHeader)`
+## 8. `api.header(headerName, isRequestHeader)`
 
 ```ts
 header(headerName: string, isRequestHeader: boolean): Promise<string | string[] | undefined>
@@ -99,18 +110,18 @@ header(headerName: string, isRequestHeader: boolean): Promise<string | string[] 
 
 Lee encabezados registrados por la ventana de prueba. `headerName` se pasa a minúsculas; `true` lee request headers y `false` response headers. Solo se registran nombres configurados en `requestHeaders` o `responseHeaders`.
 
-## 8. Inyección y eventos globales
+## 9. Inyección y eventos globales
 
 - `urlchange`: si `saForm.urlchangeEvent` es verdadero y la ventana es top-level, se envuelven `pushState`, `replaceState` y `popstate`; el evento entrega `{ oldUrl, url }`.
 - `window.EventSource`: en modo SSE se envuelven `addEventListener('message', fn)` y `onmessage`; si `matchUrl` coincide, el script procesa los datos y su retorno reemplaza `MessageEvent.data`.
 - `window.fetch`: en modo SSE solo procesa respuestas `text/event-stream` cuya URL coincida; lee chunks, ejecuta el script, re-encodea y escribe en un `ReadableStream`.
 - `postIpcMessage(type, data)`: función interna para comunicación page/preload por `window.postMessage`, usada principalmente por `doSSE` y `doReplySSE`.
 
-## 9. Control de página
+## 10. Control de página
 
 - `saForm.hide`: durante inicialización y cambios DOM, los elementos coincidentes reciben `__ignore__="true"` y `display: none`.
 - `saForm.remove`: durante inicialización y cambios DOM, los elementos coincidentes se eliminan de su padre.
 
-## 10. Tipos
+## 11. Tipos
 
 Consulte `api.md` para el bloque TypeScript completo; las firmas públicas son las mismas que las listadas arriba.

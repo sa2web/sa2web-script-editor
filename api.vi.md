@@ -7,7 +7,7 @@ Tài liệu này tóm tắt các API chính được `src/preload.js` gắn lên
 | API | Cửa sổ | Mục đích |
 | --- | --- | --- |
 | `window.fileApi` | Cửa sổ chính | Giao tiếp với main process: mở/lưu file, mở cửa sổ kiểm thử, đọc/lưu cấu hình, xử lý menu và đổi ngôn ngữ. |
-| `window.api` | Cửa sổ trang kiểm thử và iframe truy cập được | API cho user script: dữ liệu người dùng, truy vấn và quan sát DOM, overlay, tiện ích, header request/response và cấu hình sản phẩm. |
+| `window.api` | Cửa sổ trang kiểm thử và iframe truy cập được | API cho user script: dữ liệu người dùng, HTTP request, truy vấn và quan sát DOM, overlay, tiện ích, header request/response và cấu hình sản phẩm. |
 
 Trang kiểm thử cũng có thể bọc `window.EventSource`, `window.fetch` và phát sự kiện tùy chỉnh `urlchange`.
 
@@ -35,6 +35,7 @@ Sự kiện menu: `onMenuOpenFile(callback)`, `onMenuSaveFile(callback)`, `onMen
 interface Window {
   api: {
     user: UserApi;
+    http: HttpApi;
     config: Record<string, unknown>;
     dom: DomApi;
     utils: UtilsApi;
@@ -45,7 +46,17 @@ interface Window {
 
 `api.config` đọc cấu hình sản phẩm: `api.config === saForm.product || {}`.
 
-## 4. `api.user`
+## 4. `api.http`
+
+`api.http` cung cấp công cụ HTTP request cho user script. `api.http.ajax` thực thi request thực tế trong browser main process, nên không bị giới hạn bởi chính sách CORS của trang.
+
+| Phương thức | Chữ ký | Mô tả |
+| --- | --- | --- |
+| `ajax` | `ajax(options: { url: string; method?: string; data?: any; headers?: Record<string, string>; timeout?: number; dataType?: 'json' \| 'text' \| 'html' \| 'arrayBuffer'; contentType?: string; processData?: boolean }): Promise<{ ok: boolean, status: number, statusText: string, data?: any, error?: string, timeout?: boolean }>` | Gửi HTTP request. `method` mặc định `GET`; `dataType` mặc định `json`; `contentType` mặc định `application/x-www-form-urlencoded; charset=UTF-8`; `processData` mặc định `true`. Dữ liệu `GET`/`HEAD` được serialize vào query string, các request khác ghi vào body. |
+
+Kết quả gồm `ok`, `status`, `statusText`. `data` là response đã parse khi có thể, `error` là thông báo lỗi, và `timeout` là `true` nếu request bị hủy do timeout.
+
+## 5. `api.user`
 
 `api.user` đọc và ghi dữ liệu liên quan đến người dùng. Hiện tại dữ liệu nằm trong mảng bộ nhớ của main process và không được lưu bền vững như database sau khi khởi động lại.
 
@@ -62,7 +73,7 @@ Tham số tùy chọn chung: `site`, `account`, `did` là boolean, mặc định
 | `countAll` | `countAll(name: string, site?: boolean, account?: boolean): Promise<{ value: number, status: boolean }>` | Đếm bản ghi có tên này. |
 | `sumAll` | `sumAll(name: string, site?: boolean, account?: boolean): Promise<{ value: number, status: boolean }>` | Tính tổng giá trị số của các bản ghi có tên này. |
 
-## 5. `api.dom`
+## 6. `api.dom`
 
 `api.dom` cung cấp truy vấn DOM, kiểm tra visibility, listener kết nối, listener kích thước và tạo overlay.
 
@@ -84,14 +95,14 @@ Selector hỗ trợ: CSS (`.class-name`), XPath (`xpath://div[@id="app"]`), hậ
 
 Overlay được thêm vào `document.documentElement`, đổi kích thước thành `0px` khi target biến mất, và cập nhật qua `ResizeObserver`, `resize`, `scroll`.
 
-## 6. `api.utils`
+## 7. `api.utils`
 
 | Phương thức | Chữ ký | Mô tả |
 | --- | --- | --- |
 | `wait` | `wait(fn: () => boolean, timeoutMs: number, intervalMs?: number): Promise<void>` | Poll đến khi `fn` trả truthy. `intervalMs` mặc định `100`. Timeout reject `Error("Timeout: function did not return true in time.")`. |
 | `runScript` | `runScript(code: string, userGesture?: boolean, callback?: (result: any, error: Error) => void): Promise<any>` | Chạy JavaScript trong trang bằng `webFrame.executeJavaScript`. |
 
-## 7. `api.header(headerName, isRequestHeader)`
+## 8. `api.header(headerName, isRequestHeader)`
 
 ```ts
 header(headerName: string, isRequestHeader: boolean): Promise<string | string[] | undefined>
@@ -99,18 +110,18 @@ header(headerName: string, isRequestHeader: boolean): Promise<string | string[] 
 
 Đọc header đã được cửa sổ kiểm thử ghi lại. `headerName` được chuyển về chữ thường; `true` đọc request header, `false` đọc response header. Chỉ những header khai báo trong `requestHeaders` hoặc `responseHeaders` mới được ghi.
 
-## 8. Injection và sự kiện toàn cục
+## 9. Injection và sự kiện toàn cục
 
 - `urlchange`: nếu `saForm.urlchangeEvent` là true và cửa sổ là top-level, `pushState`, `replaceState`, `popstate` được bọc; event chứa `{ oldUrl, url }`.
 - `window.EventSource`: trong chế độ SSE, bọc `addEventListener('message', fn)` và `onmessage`; khi `matchUrl` khớp, dữ liệu message được đưa cho script và kết quả thay thế `MessageEvent.data`.
 - `window.fetch`: trong chế độ SSE, chỉ xử lý response `text/event-stream` có URL khớp; đọc chunk, chạy script, encode lại và ghi vào `ReadableStream`.
 - `postIpcMessage(type, data)`: hàm nội bộ để giao tiếp page/preload qua `window.postMessage`, chủ yếu dùng cho `doSSE` và `doReplySSE`.
 
-## 9. Điều khiển trang
+## 10. Điều khiển trang
 
 - `saForm.hide`: khi khởi tạo và khi DOM thay đổi, phần tử khớp nhận `__ignore__="true"` và `display: none`.
 - `saForm.remove`: khi khởi tạo và khi DOM thay đổi, phần tử khớp bị xóa khỏi parent.
 
-## 10. Kiểu
+## 11. Kiểu
 
 Xem `api.md` để có block TypeScript đầy đủ; các chữ ký public giống như đã liệt kê ở trên.

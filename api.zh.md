@@ -9,7 +9,7 @@
 | API | 所在窗口 | 用途 |
 | --- | --- | --- |
 | `window.fileApi` | 应用主窗口 | 主窗口和主进程通信：打开/保存文件、启动测试窗口、读取/保存配置、菜单事件、语言切换。 |
-| `window.api` | 测试页面窗口和可访问 iframe | 用户脚本 API：用户数据、DOM 查询和观察、覆盖层、工具函数、请求/响应头读取、产品配置读取。 |
+| `window.api` | 测试页面窗口和可访问 iframe | 用户脚本 API：用户数据、HTTP 请求、DOM 查询和观察、覆盖层、工具函数、请求/响应头读取、产品配置读取。 |
 
 另外，测试页面中还会被注入或改写：
 
@@ -271,6 +271,7 @@ window.fileApi.onAbout(() => {
 interface Window {
   api: {
     user: UserApi;
+    http: HttpApi;
     config: Record<string, unknown>;
     dom: DomApi;
     utils: UtilsApi;
@@ -299,7 +300,83 @@ api.config === saForm.product || {}
 const apiBase = api.config.apiBase;
 ```
 
-## 4. `api.user`
+## 4. `api.http`
+
+`api.http` 为用户脚本提供 HTTP 请求工具。`api.http.ajax` 会在浏览器主进程中执行实际请求，因此不受页面 CORS 策略限制。
+
+### 4.1 `api.http.ajax(options)`
+
+发送 HTTP 请求。
+
+```ts
+ajax(options: {
+  url: string;
+  method?: string;
+  data?: any;
+  headers?: Record<string, string>;
+  timeout?: number;
+  dataType?: 'json' | 'text' | 'html' | 'arrayBuffer';
+  contentType?: string;
+  processData?: boolean;
+}): Promise<{
+  ok: boolean;
+  status: number;
+  statusText: string;
+  data?: any;
+  error?: string;
+  timeout?: boolean;
+}>
+```
+
+参数：
+
+| 参数 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `url` | string | - | 请求 URL。 |
+| `method` | string | `GET` | HTTP 请求方法。 |
+| `data` | any | - | 请求数据。`GET` / `HEAD` 请求会序列化到查询字符串，其它请求会写入请求体。 |
+| `headers` | `Record<string, string>` | `{}` | 请求头键值对。 |
+| `timeout` | number | - | 超时时间，单位为毫秒；大于 `0` 时生效。 |
+| `dataType` | `'json' \| 'text' \| 'html' \| 'arrayBuffer'` | `json` | 响应解析方式。 |
+| `contentType` | string | `application/x-www-form-urlencoded; charset=UTF-8` | 请求体 Content-Type。 |
+| `processData` | boolean | `true` | 是否自动序列化 `data`；设为 `false` 时会将 `data` 直接作为请求体。 |
+
+返回值：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `ok` | boolean | HTTP 2xx 时为 `true`；解析失败、HTTP 错误、超时、中止或网络错误时为 `false`。 |
+| `status` | number | HTTP 状态码。`0` 表示超时、中止或网络层错误。 |
+| `statusText` | string | HTTP 状态文本；非 HTTP 失败时可能为 `timeout`、`abort` 或 `error`。 |
+| `data` | any | 解析后的响应数据；解析成功时存在。 |
+| `error` | string | 错误信息；解析失败或非 HTTP 失败时存在。 |
+| `timeout` | boolean | 请求被超时配置中止时为 `true`。 |
+
+示例：
+
+```js
+const ret = await api.http.ajax({
+  url: 'https://example.com/api/profile',
+  method: 'GET',
+  dataType: 'json',
+  timeout: 10000
+});
+
+if (ret.ok) {
+  console.log(ret.data);
+}
+```
+
+```js
+const ret = await api.http.ajax({
+  url: 'https://example.com/api/items',
+  method: 'POST',
+  contentType: 'application/json',
+  data: { name: 'demo' }
+});
+```
+
+## 5. `api.user`
 
 `api.user` 用于读写用户关联数据。当前实现由主进程内存数组支撑，重启后不会作为数据库持久化。
 
@@ -322,7 +399,7 @@ const apiBase = api.config.apiBase;
 | `account` | boolean | `false` | 是否分账号存储。当前主进程实现接收该参数，但未实际分区。 |
 | `did` | boolean | `false` | 是否分设备存储。当前主进程实现接收该参数，但未实际分区。 |
 
-### 4.1 `api.user.put(name, value, site, account, did)`
+### 5.1 `api.user.put(name, value, site, account, did)`
 
 保存指定键值。
 
@@ -342,7 +419,7 @@ put(
 await api.user.put('token', 'abc123');
 ```
 
-### 4.2 `api.user.get(name, site, account, did)`
+### 5.2 `api.user.get(name, site, account, did)`
 
 读取指定键值。
 
@@ -362,7 +439,7 @@ const ret = await api.user.get('token');
 console.log(ret.value);
 ```
 
-### 4.3 `api.user.remove(name, site, account, did)`
+### 5.3 `api.user.remove(name, site, account, did)`
 
 删除指定键值。
 
@@ -381,7 +458,7 @@ remove(
 await api.user.remove('token');
 ```
 
-### 4.4 `api.user.incr(name, step, site, account, did)`
+### 5.4 `api.user.incr(name, step, site, account, did)`
 
 按步长增加指定键的数值。
 
@@ -407,7 +484,7 @@ const ret = await api.user.incr('count', 1);
 console.log(ret.value);
 ```
 
-### 4.5 `api.user.decr(name, step, site, account, did)`
+### 5.5 `api.user.decr(name, step, site, account, did)`
 
 按步长减少指定键的数值。
 
@@ -433,7 +510,7 @@ const ret = await api.user.decr('count', 1);
 console.log(ret.value);
 ```
 
-### 4.6 `api.user.startsWith(prefix, site, account, did)`
+### 5.6 `api.user.startsWith(prefix, site, account, did)`
 
 查找所有键名以指定前缀开头的数据。
 
@@ -452,7 +529,7 @@ startsWith(
 const items = await api.user.startsWith('cache:');
 ```
 
-### 4.7 `api.user.countAll(name, site, account)`
+### 5.7 `api.user.countAll(name, site, account)`
 
 统计指定键名的记录数量。
 
@@ -471,7 +548,7 @@ const ret = await api.user.countAll('token');
 console.log(ret.value);
 ```
 
-### 4.8 `api.user.sumAll(name, site, account)`
+### 5.8 `api.user.sumAll(name, site, account)`
 
 统计指定键名对应值的数值总和。
 
@@ -490,11 +567,11 @@ const ret = await api.user.sumAll('score');
 console.log(ret.value);
 ```
 
-## 5. `api.dom`
+## 6. `api.dom`
 
 `api.dom` 提供 DOM 查询、可见性判断、连接监听、尺寸监听和覆盖层创建能力。
 
-### 5.1 选择器规则
+### 6.1 选择器规则
 
 所有 `cssOrXPathSelector` 均支持：
 
@@ -511,7 +588,7 @@ console.log(ret.value);
 
 这些后缀用于指定取目标元素的哪一条边。
 
-### 5.2 `api.dom.createMutationObserver(ele, bindStr, childList, subtree, attributes, characterData, fn)`
+### 6.2 `api.dom.createMutationObserver(ele, bindStr, childList, subtree, attributes, characterData, fn)`
 
 创建并缓存 `MutationObserver`。
 
@@ -553,7 +630,7 @@ api.dom.createMutationObserver(
 );
 ```
 
-### 5.3 `api.dom.querySelector(doc, cssOrXPathSelector)`
+### 6.3 `api.dom.querySelector(doc, cssOrXPathSelector)`
 
 查询第一个匹配元素。
 
@@ -567,7 +644,7 @@ querySelector(doc: Document, cssOrXPathSelector: string): HTMLElement | null
 const el = api.dom.querySelector(document, 'xpath://button[contains(.,"提交")]');
 ```
 
-### 5.4 `api.dom.querySelectorAll(doc, cssOrXPathSelector)`
+### 6.4 `api.dom.querySelectorAll(doc, cssOrXPathSelector)`
 
 查询所有匹配元素。
 
@@ -581,7 +658,7 @@ querySelectorAll(doc: Document, cssOrXPathSelector: string): HTMLElement[]
 const buttons = api.dom.querySelectorAll(document, 'button.primary');
 ```
 
-### 5.5 `api.dom.isVisible(ele)`
+### 6.5 `api.dom.isVisible(ele)`
 
 判断元素是否处于可见交叉区域。
 
@@ -602,7 +679,7 @@ if (await api.dom.isVisible(el)) {
 }
 ```
 
-### 5.6 `api.dom.getVisibleRect(ele)`
+### 6.6 `api.dom.getVisibleRect(ele)`
 
 获取元素当前可见区域矩形。
 
@@ -625,7 +702,7 @@ const rect = await api.dom.getVisibleRect(el);
 console.log(rect.left, rect.top, rect.width, rect.height);
 ```
 
-### 5.7 `api.dom.getConnectListeners()`
+### 6.7 `api.dom.getConnectListeners()`
 
 获取当前连接监听器列表。
 
@@ -649,7 +726,7 @@ api.dom.addConnectListener('.modal', () => {});
 console.log(api.dom.getConnectListeners());
 ```
 
-### 5.8 `api.dom.addConnectListener(cssOrXPathSelector, callback)`
+### 6.8 `api.dom.addConnectListener(cssOrXPathSelector, callback)`
 
 监听某个目标元素是否出现在文档中或从文档中消失。
 
@@ -674,7 +751,7 @@ api.dom.addConnectListener('.dialog', (isConnected) => {
 });
 ```
 
-### 5.9 `api.dom.removeConnectListener(cssOrXPathSelectors)`
+### 6.9 `api.dom.removeConnectListener(cssOrXPathSelectors)`
 
 移除指定选择器对应的连接监听器。
 
@@ -688,7 +765,7 @@ removeConnectListener(cssOrXPathSelectors: string[]): void
 api.dom.removeConnectListener(['.dialog', '.toast']);
 ```
 
-### 5.10 `api.dom.addResizeListener(cssOrXPathSelector, bindWindowStr, callback, createObserver, delayTime)`
+### 6.10 `api.dom.addResizeListener(cssOrXPathSelector, bindWindowStr, callback, createObserver, delayTime)`
 
 监听目标元素尺寸和位置变化。
 
@@ -726,7 +803,7 @@ api.dom.addResizeListener('.target', '__targetResize__', (rect) => {
 });
 ```
 
-### 5.11 `api.dom.createOverlayBy(cssOrXPathSelector, bindWindowStr, createObserver, delayTime, fn)`
+### 6.11 `api.dom.createOverlayBy(cssOrXPathSelector, bindWindowStr, createObserver, delayTime, fn)`
 
 创建一个跟随目标元素可见区域的固定定位覆盖层。
 
@@ -768,7 +845,7 @@ overlay.style.pointerEvents = 'none';
 overlay.style.zIndex = '999999';
 ```
 
-### 5.12 `api.dom.createOverlayByBorder(bindWindowStr, top, right, bottom, left, createObserver, delayTime)`
+### 6.12 `api.dom.createOverlayByBorder(bindWindowStr, top, right, bottom, left, createObserver, delayTime)`
 
 通过四条边创建一个固定定位覆盖层。每条边可以是数字像素值，也可以是选择器。
 
@@ -816,9 +893,9 @@ const panel = api.dom.createOverlayByBorder(
 panel.style.background = 'rgba(0,0,0,.08)';
 ```
 
-## 6. `api.utils`
+## 7. `api.utils`
 
-### 6.1 `api.utils.wait(fn, timeoutMs, intervalMs)`
+### 7.1 `api.utils.wait(fn, timeoutMs, intervalMs)`
 
 轮询等待条件函数返回真值。
 
@@ -853,7 +930,7 @@ await api.utils.wait(
 );
 ```
 
-### 6.2 `api.utils.runScript(code, userGesture, callback)`
+### 7.2 `api.utils.runScript(code, userGesture, callback)`
 
 在当前页面执行 JavaScript 代码。
 
@@ -877,7 +954,7 @@ const title = await api.utils.runScript('document.title');
 console.log(title);
 ```
 
-## 7. `api.header(headerName, isRequestHeader)`
+## 8. `api.header(headerName, isRequestHeader)`
 
 读取测试窗口记录的请求头或响应头。
 
@@ -909,9 +986,9 @@ const cookie = await api.header('cookie', true);
 const setCookie = await api.header('set-cookie', false);
 ```
 
-## 8. 注入行为与全局事件
+## 9. 注入行为与全局事件
 
-### 8.1 `urlchange` 事件
+### 9.1 `urlchange` 事件
 
 当 `saForm.urlchangeEvent` 为真，并且当前窗口是顶层窗口时，预加载脚本会包装：
 
@@ -936,7 +1013,7 @@ window.addEventListener('urlchange', (event) => {
 });
 ```
 
-### 8.2 `window.EventSource` 包装
+### 9.2 `window.EventSource` 包装
 
 SSE 模式下，预加载脚本会代理 `EventSource`：
 
@@ -953,7 +1030,7 @@ async (data) => {
 }
 ```
 
-### 8.3 `window.fetch` 包装
+### 9.3 `window.fetch` 包装
 
 SSE 模式下，预加载脚本会代理 `fetch` 返回值：
 
@@ -962,7 +1039,7 @@ SSE 模式下，预加载脚本会代理 `fetch` 返回值：
 - 逐 chunk 读取流内容，把文本传给脚本处理。
 - 脚本返回的新文本会重新编码并写回 `ReadableStream`。
 
-### 8.4 `postIpcMessage(type, data)`
+### 9.4 `postIpcMessage(type, data)`
 
 预加载脚本注入的页面代码中会创建一个全局异步函数 `postIpcMessage`，用于页面上下文和预加载上下文之间通过 `window.postMessage` 请求/响应。
 
@@ -977,9 +1054,9 @@ postIpcMessage(type: string, data: object): Promise<any>
 
 不建议业务脚本直接依赖该内部函数。
 
-## 9. 页面控制行为
+## 10. 页面控制行为
 
-### 9.1 `saForm.hide`
+### 10.1 `saForm.hide`
 
 页面脚本模式初始化和 DOM 变化时，预加载脚本会遍历 `saForm.hide`：
 
@@ -993,7 +1070,7 @@ saForm.hide.forEach(selector => {
 });
 ```
 
-### 9.2 `saForm.remove`
+### 10.2 `saForm.remove`
 
 页面脚本模式初始化和 DOM 变化时，预加载脚本会遍历 `saForm.remove`：
 
@@ -1004,7 +1081,7 @@ saForm.remove.forEach(selector => {
 });
 ```
 
-## 10. 类型汇总
+## 11. 类型汇总
 
 ```ts
 type UserApi = {
@@ -1016,6 +1093,19 @@ type UserApi = {
   startsWith(prefix: string, site?: boolean, account?: boolean, did?: boolean): Promise<Array<{ name: string, value: string }>>;
   countAll(name: string, site?: boolean, account?: boolean): Promise<{ value: number, status: boolean }>;
   sumAll(name: string, site?: boolean, account?: boolean): Promise<{ value: number, status: boolean }>;
+};
+
+type HttpApi = {
+  ajax(options: {
+    url: string;
+    method?: string;
+    data?: any;
+    headers?: Record<string, string>;
+    timeout?: number;
+    dataType?: 'json' | 'text' | 'html' | 'arrayBuffer';
+    contentType?: string;
+    processData?: boolean;
+  }): Promise<{ ok: boolean, status: number, statusText: string, data?: any, error?: string, timeout?: boolean }>;
 };
 
 type DomApi = {
