@@ -74,7 +74,9 @@ let handleScripts = (win) => {
     if (!saForm.scriptSelector) {
         return;
     }
-
+    if(!saForm.isPage && !saForm.isSSE ) {
+        return;
+    }
     let matchEle = Utils.findElement(win.document, saForm.scriptSelector);
     if (!matchEle) {
         return;
@@ -202,10 +204,10 @@ let initUserScriptApis = (win) => {
                 return createMutationObserverImpl(ele, bindStr, childList, subtree, attributes, characterData, fn);
             },
             isVisible: async (ele) => {
-                return Utils._isVisible(ele);
+                return Utils.isVisible(ele);
             },
             getVisibleRect: async (ele) => {
-                return Utils._getVisibleRect(ele);
+                return Utils.getVisibleRect(ele);
             },
             querySelectorAll: (doc, cssOrXPathSelector) => {
                 return Utils.findElements(doc, cssOrXPathSelector, false);
@@ -395,7 +397,7 @@ let initUserScriptApis = (win) => {
                     if (right.endsWith(':right')) {
                         rightBorder = 'right';
                         right = right.slice(0, right.length - ':right'.length);
-                    } else {
+                     }else if(right.endsWith(':left')){
                         right = right.slice(0, right.length - ':left'.length);
                     }
                 }

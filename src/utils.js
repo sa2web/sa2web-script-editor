@@ -8,11 +8,12 @@ export class Utils {
             node = node.parentElement;
         }
         return new Promise(resolve => {
-            new IntersectionObserver(entries => {
+            const interObserver = new IntersectionObserver(entries => {
                 const entry = entries[0];
                 interObserver.disconnect();
                 resolve(entry.isIntersecting);
-            }).observe(node);
+            });
+            interObserver.observe(node);
         });
     }
     static async getVisibleRect(node) {
@@ -20,11 +21,12 @@ export class Utils {
             return new DOMRectReadOnly(0, 0, 0, 0);
         }
         return new Promise(resolve => {
-            new IntersectionObserver(entries => {
+            const interObserver = new IntersectionObserver(entries => {
                 const entry = entries[0];
                 interObserver.disconnect();
                 resolve(entry.intersectionRect);
-            }).observe(node);
+            });
+            interObserver.observe(node);
         });
     }
 

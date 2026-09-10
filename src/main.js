@@ -472,6 +472,8 @@ let createTestWindow = () => {
       }
     }
 
+    delete details.responseHeaders['content-security-policy'];
+    delete details.responseHeaders['content-security-policy-report-only'];
     callback({ responseHeaders: details.responseHeaders });
   });
   return testWindow;
