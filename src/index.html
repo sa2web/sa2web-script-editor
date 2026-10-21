@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sa2web Plugin Editor</title>
+  <link rel="stylesheet" href="../css/bootstrap.css">
+  <link rel="stylesheet" href="../css/plugin-editor.css">
+</head>
+<body>
+  <div id="app">
+    <div class="topbar">
+      <h1 class="h3">Sa2web Plugin Editor</h1>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label for="plugin-name">{{ t('sitePlugin.name') }}</label>
+          <input id="plugin-name" class="form-control" v-model.trim="meta.name" :placeholder="t('sitePlugin.debugNamePlaceholder')">
+        </div>
+        <div class="col-md-6">
+          <label for="debug-token">{{ t('editor.debugToken') }}</label>
+          <input id="debug-token" type="password" class="form-control" v-model.trim="meta.token" autocomplete="off">
+        </div>
+        <div class="col-md-6">
+          <label for="plugin-version">{{ t('sitePlugin.ver') }}</label>
+          <input id="plugin-version" class="form-control" v-model.trim="meta.ver" placeholder="1.0.0" required>
+        </div>
+        <div class="col-md-6">
+          <label for="plugin-remark">{{ t('sitePlugin.remark') }}</label>
+          <input id="plugin-remark" class="form-control" v-model.trim="meta.remark" required>
+        </div>
+        <div class="col-12">
+          <label for="test-url">{{ t('editor.testUrl') }}</label>
+          <input id="test-url" type="url" class="form-control" v-model.trim="meta.testUrl" placeholder="https://example.com/app/index">
+        </div>
+        <div class="col-md-6">
+          <label for="editor-language">{{ t('editor.language') }}</label>
+          <select id="editor-language" class="form-select" v-model="language">
+            <option v-for="option in languages" :key="option.code" :value="option.code">{{ option.name }}</option>
+          </select>
+        </div>
+        <div class="col-12 d-flex gap-2 align-items-center">
+          <button class="btn btn-primary" @click="launch" :disabled="busy">{{ t('launch') }}</button>
+          <button class="btn btn-outline-secondary" @click="exportPlugin">{{ t('sitePlugin.export') }}</button>
+          <span role="status">{{ status }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2 class="h5 mb-0">{{ meta.name || t('sitePlugin.configTitle') }}</h2></div>
+      <div class="card-body">
+        <form @submit.prevent="saveConfig">
+          <div class="card mb-4">
+            <div class="card-header">
+              {{ t('siteConfig.requestHeaders') }}
+            </div>
+            <div class="card-body">
+              <div class="mb-3">
+                <div class="input-group">
+                  <input type="text" class="form-control" v-model="newRequestHeader" :placeholder="t('siteConfig.headerName')">
+                  <button class="btn btn-outline-secondary" type="button" @click="addRequestHeader">{{ t('settings.add') }}</button>
+                </div>
+              </div>
+              <ul class="list-group">
+                <li class="list-group-item d-flex justify-content-between align-items-center" v-for="(header, index) in config.requestHeaders" :key="'req-' + index">
+                  {{ header }}
+                  <button type="button" class="btn btn-danger btn-sm" @click="removeRequestHeader(index)">{{ t('users.delete') }}</button>
+                </li>
+                <li class="list-group-item text-center text-muted" v-if="config.requestHeaders.length === 0">
+                  {{ t('siteConfig.noConfig') }}
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card mb-4">
+            <div class="card-header">
+              {{ t('siteConfig.responseHeaders') }}
+            </div>
+            <div class="card-body">
+              <div class="mb-3">
+                <div class="input-group">
+                  <input type="text" class="form-control" v-model="newResponseHeader" :placeholder="t('siteConfig.headerName')">
+                  <button class="btn btn-outline-secondary" type="button" @click="addResponseHeader">{{ t('settings.add') }}</button>
+                </div>
+              </div>
+              <ul class="list-group">
+                <li class="list-group-item d-flex justify-content-between align-items-center" v-for="(header, index) in config.responseHeaders" :key="'res-' + index">
+                  {{ header }}
+                  <button type="button" class="btn btn-danger btn-sm" @click="removeResponseHeader(index)">{{ t('users.delete') }}</button>
+                </li>
+                <li class="list-group-item text-center text-muted" v-if="config.responseHeaders.length === 0">
+                  {{ t('siteConfig.noConfig') }}
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card mb-4">
+            <div class="card-header">
+              {{ t('siteConfig.thirdPartySites') }}
+            </div>
+            <div class="card-body">
+              <div class="mb-3">
+                <div class="input-group">
+                  <input type="text" class="form-control" v-model="newThirdSite" :placeholder="t('url')">
+                  <button class="btn btn-outline-secondary" type="button" @click="addThirdSite">{{ t('settings.add') }}</button>
+                </div>
+              </div>
+              <ul class="list-group">
+                <li class="list-group-item d-flex justify-content-between align-items-center" v-for="(site, index) in config.thirdSites" :key="index">
+                  {{ site }}
+                  <button type="button" class="btn btn-danger btn-sm" @click="removeThirdSite(index)">{{ t('users.delete') }}</button>
+                </li>
+                <li class="list-group-item text-center text-muted" v-if="config.thirdSites.length === 0">
+                  {{ t('siteConfig.noConfig') }}
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card mb-4">
+            <div class="card-header">
+              {{ t('siteConfig.hideSecrets') }}
+            </div>
+            <div class="card-body">
+              <div class="mb-3">
+                <div class="input-group">
+                  <textarea class="form-control" rows="3" v-model="newSecret" :placeholder="t('siteConfig.enterSecret')"></textarea>
+                  <button class="btn btn-outline-secondary" type="button" @click="addSecret">{{ t('settings.add') }}</button>
+                </div>
+              </div>
+              <ul class="list-group">
+                <li class="list-group-item d-flex justify-content-between align-items-center" v-for="(secret, index) in config.controls.secrets" :key="'secret-' + index">
+                  {{ secret }}
+                  <button type="button" class="btn btn-danger btn-sm" @click="removeSecret(index)">{{ t('users.delete') }}</button>
+                </li>
+                <li class="list-group-item text-center text-muted" v-if="config.controls.secrets.length === 0">
+                  {{ t('siteConfig.noConfig') }}
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card mb-4">
+            <div class="card-header">
+              {{ t('siteConfig.blockUrlList') }}
+            </div>
+            <div class="card-body">
+              <div class="mb-3">
+                <div class="input-group">
+                  <input type="text" class="form-control" v-model="newBlock" :placeholder="t('siteConfig.matchUrl')">
+                  <button class="btn btn-outline-secondary" type="button" @click="addBlock">{{ t('settings.add') }}</button>
+                </div>
+              </div>
+              <ul class="list-group">
+                <li class="list-group-item d-flex justify-content-between align-items-center" v-for="(block, index) in config.controls.blocks" :key="'block-' + index">
+                  {{ block }}
+                  <button type="button" class="btn btn-danger btn-sm" @click="removeBlock(index)">{{ t('users.delete') }}</button>
+                </li>
+                <li class="list-group-item text-center text-muted" v-if="config.controls.blocks.length === 0">
+                  {{ t('siteConfig.noConfig') }}
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card mb-4">
+            <div class="card-header">
+              {{ t('siteConfig.removeControls') }}
+            </div>
+            <div class="card-body">
+              <div class="mb-2">
+                <label class="form-label">{{ t('siteConfig.matchUrl') }}:</label>
+                <input type="text" class="form-control" v-model="newRemoveControl.url" placeholder="*">
+              </div>
+              <div class="mb-2">
+                <label class="form-label">{{ t('siteConfig.selectors') }}:</label>
+                <div class="input-group mb-2">
+                  <input type="text" class="form-control" v-model="newRemoveSelector" :placeholder="t('siteConfig.selectors')">
+                  <button class="btn btn-outline-secondary" type="button" @click="addRemoveSelector">{{ t('siteConfig.addSelector') }}</button>
+                </div>
+                <ul class="list-group mb-2" v-if="newRemoveControl.selector.length > 0">
+                  <li class="list-group-item d-flex justify-content-between align-items-center" v-for="(sel, idx) in newRemoveControl.selector" :key="idx">
+                    {{ sel }}
+                    <button type="button" class="btn btn-danger btn-sm" @click="newRemoveControl.selector.splice(idx, 1)">×</button>
+                  </li>
+                </ul>
+              </div>
+              <button class="btn btn-primary btn-sm" type="button" @click="addRemoveControl">{{ t('siteConfig.addRemoveControl') }}</button>
+            </div>
+          </div>
+          <ul class="list-group mb-4">
+            <li class="list-group-item" v-for="(ctrl, index) in config.controls.remove" :key="'remove-' + index">
+              <strong>{{ t('url') }}:</strong> {{ ctrl.url || '*' }}<br>
+              <strong>{{ t('siteConfig.selectors') }}:</strong>
+              <ul>
+                <li v-for="(sel, idx) in ctrl.selector" :key="idx">{{ sel }}</li>
+                <li class="text-muted" v-if="ctrl.selector.length === 0">{{ t('siteConfig.none') }}</li>
+              </ul>
+              <button type="button" class="btn btn-danger btn-sm mt-2" @click="config.controls.remove.splice(index, 1)">{{ t('users.delete') }}</button>
+            </li>
+          </ul>
+
+          <div class="card mb-4">
+            <div class="card-header">
+              {{ t('siteConfig.hideControls') }}
+            </div>
+            <div class="card-body">
+              <div class="mb-2">
+                <label class="form-label">{{ t('siteConfig.matchUrl') }}:</label>
+                <input type="text" class="form-control" v-model="newHideControl.url" placeholder="*">
+              </div>
+              <div class="mb-2">
+                <label class="form-label">{{ t('siteConfig.selectors') }}:</label>
+                <div class="input-group mb-2">
+                  <input type="text" class="form-control" v-model="newHideSelector" :placeholder="t('siteConfig.selectors')">
+                  <button class="btn btn-outline-secondary" type="button" @click="addHideSelector">{{ t('siteConfig.addSelector') }}</button>
+                </div>
+                <ul class="list-group mb-2" v-if="newHideControl.selector.length > 0">
+                  <li class="list-group-item d-flex justify-content-between align-items-center" v-for="(sel, idx) in newHideControl.selector" :key="idx">
+                    {{ sel }}
+                    <button type="button" class="btn btn-danger btn-sm" @click="newHideControl.selector.splice(idx, 1)">×</button>
+                  </li>
+                </ul>
+              </div>
+              <button class="btn btn-primary btn-sm" type="button" @click="addHideControl">{{ t('siteConfig.addHideControl') }}</button>
+            </div>
+          </div>
+          <ul class="list-group mb-4">
+            <li class="list-group-item" v-for="(ctrl, index) in config.controls.hide" :key="'hide-' + index">
+              <strong>{{ t('url') }}:</strong> {{ ctrl.url || '*' }}<br>
+              <strong>{{ t('siteConfig.selectors') }}:</strong>
+              <ul>
+                <li v-for="(sel, idx) in ctrl.selector" :key="idx">{{ sel }}</li>
+                <li class="text-muted" v-if="ctrl.selector.length === 0">{{ t('siteConfig.none') }}</li>
+              </ul>
+              <button type="button" class="btn btn-danger btn-sm mt-2" @click="config.controls.hide.splice(index, 1)">{{ t('users.delete') }}</button>
+            </li>
+          </ul>
+
+          <div class="card mb-4">
+            <div class="card-header">
+              {{ editingScriptIndex === null ? t('siteConfig.addScript') : t('siteConfig.editScript') }}
+            </div>
+            <div class="card-body">
+              <div class="mb-2">
+                <label class="form-label">{{ t('siteConfig.scriptName') }}</label>
+                <input type="text" class="form-control" v-model="newScript.name">
+              </div>
+              <div class="mb-2">
+                <label class="form-label">{{ t('siteConfig.matchUrl') }}</label>
+                <input type="text" class="form-control" v-model="newScript.url" :placeholder="t('siteConfig.matchUrl')">
+              </div>
+              <div class="mb-2">
+                <div class="form-check">
+                  <input type="checkbox" class="form-check-input" id="newPageScript" v-model="newScript.pageScript">
+                  <label class="form-check-label" for="newPageScript">{{ t('siteConfig.pageScript') }}</label>
+                </div>
+              </div>
+              <div class="mb-2" v-if="!newScript.pageScript">
+                <div class="form-check">
+                  <input type="checkbox" class="form-check-input" id="newSseScript" v-model="newScript.sseScript">
+                  <label class="form-check-label" for="newSseScript">{{ t('siteConfig.sseScript') }}</label>
+                </div>
+              </div>
+              <div class="mb-2" v-if="newScript.pageScript">
+                <label class="form-label">{{ t('siteConfig.selectors') }}</label>
+                <input type="text" class="form-control" v-model="newScript.selector">
+              </div>
+              <div class="mb-2">
+                <label class="form-label">{{ t('siteConfig.javascriptCode') }}</label>
+                <div id="script-editor" class="code-editor"></div>
+              </div>
+              <button class="btn btn-primary" type="button" @click="addOrUpdateScript">
+                {{ editingScriptIndex === null ? t('settings.add') : t('common.save') }}
+              </button>
+              <button class="btn btn-secondary ms-2" type="button" @click="cancelEditScript" v-if="editingScriptIndex !== null">
+                {{ t('common.cancel') }}
+              </button>
+            </div>
+          </div>
+          <ul class="list-group mb-4">
+            <li class="list-group-item" v-for="(script, index) in config.scripts" :key="index">
+              <div class="d-flex justify-content-between align-items-center">
+                <strong>{{ script.name || t('siteConfig.anonymous') }}</strong>
+                <div>
+                  <button type="button" class="btn btn-secondary btn-sm me-2" @click="editScript(index)">{{ t('settings.edit') }}</button>
+                  <button type="button" class="btn btn-danger btn-sm" @click="removeScript(index)">{{ t('users.delete') }}</button>
+                </div>
+              </div>
+              <small class="text-muted">{{ t('url') }}: {{ script.url || '*' }}</small><br>
+              <small class="text-muted">{{ t('siteConfig.pageScript') }}: {{ t(script.pageScript ? 'common.yes' : 'common.no') }}</small><br>
+              <small class="text-muted">{{ t('siteConfig.sseScript') }}: {{ t(script.sseScript ? 'common.yes' : 'common.no') }}</small><br>
+              <small class="text-muted">{{ t('siteConfig.selectors') }}: {{ script.selector || '-' }}</small>
+            </li>
+            <li class="list-group-item text-center text-muted" v-if="config.scripts.length === 0">
+              {{ t('siteConfig.noScriptConfig') }}
+            </li>
+          </ul>
+
+
+        </form>
+      </div>
+    </div>
+  </div>
+  <script src="../vendors/bootstrap.bundle.min.js"></script>
+  <script src="../vendors/vue.global.js"></script>
+  <script src="../vendors/monaco-editor/vs/loader.js"></script>
+  <script>
+    window.Vue = Vue;
+    require.config({ paths: { vs: '../vendors/monaco-editor/vs' } });
+    require(['vs/editor/editor.main'], function () {
+      window.monaco = monaco;
+      window.dispatchEvent(new Event('monaco-ready'));
+    });
+  </script>
+</body>
+</html>
